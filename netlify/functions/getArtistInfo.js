@@ -1,7 +1,7 @@
-const API_KEY = process.env.LASTFM_API_KEY
+const API_KEY = import.meta.env.LASTFM_API_KEY
 const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/'
 
-exports.handler = async function (event) {
+export async function handler(event) {
   // Get the artist name from the query string parameters
   const artistName = event.queryStringParameters.artist
 
@@ -23,6 +23,9 @@ exports.handler = async function (event) {
       body: JSON.stringify(data),
     }
   } catch (error) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to fetch from Last.fm' }) }
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Failed to fetch from Last.fm', details: error.message }),
+    }
   }
 }

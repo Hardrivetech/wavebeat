@@ -2,7 +2,7 @@
 const API_KEY = process.env.LASTFM_API_KEY
 const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/'
 
-exports.handler = async function (event) {
+export const handler = async function (event) {
   // Get the artist name from the query string parameters
   const artistName = event.queryStringParameters.artist
 

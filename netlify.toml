@@ -1,6 +1,9 @@
 [build]
   # Directory where serverless functions are stored
   functions = "netlify/functions"
+  [build.processing.secrets]
+    # Tell Netlify's secret scanner to ignore Firebase keys
+    omit_keys = ["VITE_FIREBASE_*"]
 
 [functions]
   # Ensure dependencies for functions are installed

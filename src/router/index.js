@@ -7,6 +7,8 @@ import ProfileView from '../views/ProfileView.vue'
 import ArtistView from '../views/ArtistView.vue'
 import SearchView from '../views/SearchView.vue'
 import LikedSongsView from '../views/LikedSongsView.vue'
+import LibraryView from '../views/LibraryView.vue'
+import LibraryPlaylistsView from '../views/LibraryPlaylistsView.vue'
 import { auth } from '../firebase'
 
 const routes = [
@@ -46,9 +48,22 @@ const routes = [
     component: ArtistView,
   },
   {
-    path: '/collection/tracks',
-    name: 'LikedSongs',
-    component: LikedSongsView,
+    path: '/collection',
+    name: 'Library',
+    component: LibraryView,
+    redirect: '/collection/playlists',
+    children: [
+      {
+        path: 'playlists',
+        name: 'LibraryPlaylists',
+        component: LibraryPlaylistsView,
+      },
+      {
+        path: 'songs',
+        name: 'LikedSongs',
+        component: LikedSongsView,
+      },
+    ],
   },
 ]
 
@@ -59,7 +74,13 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const isAuthenticated = auth.currentUser
-  const requiresAuth = ['Profile', 'Playlist', 'LikedSongs'].includes(to.name)
+  const requiresAuth = [
+    'Profile',
+    'Playlist',
+    'Library',
+    'LikedSongs',
+    'LibraryPlaylists',
+  ].includes(to.name)
   const requiresGuest = ['Login', 'Signup'].includes(to.name)
 
   if (requiresAuth && !isAuthenticated) {

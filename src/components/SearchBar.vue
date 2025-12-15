@@ -26,13 +26,19 @@ const performSearch = () => {
   gap: 0.5rem;
 }
 .search-bar input {
-  padding: 0.5rem;
+  padding: 0.75rem 1.5rem;
   border-radius: 50px;
-  border: 1px solid var(--text-secondary);
+  border: none;
   background-color: var(--bg-elevation);
   color: var(--text-primary);
-  min-width: 250px;
-  padding-left: 1rem;
+  min-width: 300px;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.search-bar input:focus {
+  outline: none;
+  background-color: #2a2a2a;
 }
 .search-bar button {
   display: none; /* We can rely on the user pressing Enter */

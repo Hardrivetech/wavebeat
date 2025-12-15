@@ -69,6 +69,14 @@ const createNewPlaylist = async () => {
 
 const addToPlaylist = async (playlistId) => {
   if (!props.track) return
+
+  const playlist = props.playlists.find((p) => p.id === playlistId)
+  if (playlist && playlist.trackIds.includes(props.track.id)) {
+    showNotification('Track is already in this playlist.')
+    setTimeout(() => emit('close'), 1000)
+    return
+  }
+
   await addTrackToPlaylist(playlistId, props.track.id)
   emit('track-added', { playlistId, trackId: props.track.id })
   showNotification(`Added to playlist.`)

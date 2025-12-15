@@ -213,13 +213,12 @@ const formatTime = (seconds) => {
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: var(--bg-secondary);
+  background-color: #181818;
   border-top: 1px solid var(--bg-elevation);
   padding: 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .player-info {
@@ -381,10 +380,12 @@ input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none; /* Override default look */
   appearance: none;
   margin-top: -4px; /* Centers thumb on the track */
-  background-color: #fff;
+  background-color: var(--text-primary);
   border-radius: 50%;
   height: 12px;
   width: 12px;
+  opacity: 0; /* Hide by default */
+  transition: opacity 0.2s;
 }
 
 /* Background fill for progress */
@@ -392,6 +393,11 @@ input[type='range']::-webkit-slider-thumb {
 .volume-slider {
   background-image: linear-gradient(var(--brand-green), var(--brand-green));
   background-repeat: no-repeat;
+}
+
+.playback-bar:hover .seek-bar::-webkit-slider-thumb,
+.volume-control:hover .volume-slider::-webkit-slider-thumb {
+  opacity: 1;
 }
 
 .player-right {

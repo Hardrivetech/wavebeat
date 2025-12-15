@@ -2,14 +2,36 @@
   <div v-if="isLoading"><TrackListSkeleton :count="8" /></div>
   <div v-else-if="playlist" class="playlist-view">
     <div class="playlist-header">
-      <div class="playlist-artwork">🎵</div>
+      <div class="playlist-artwork" @click="triggerArtworkUpload">
+        <img v-if="playlist.artworkUrl" :src="playlist.artworkUrl" class="artwork-image" />
+        <span v-else>🎵</span>
+        <div class="artwork-overlay">
+          <span v-if="isOwner">Change Artwork</span>
+        </div>
+      </div>
       <div class="playlist-info">
-        <h1 class="playlist-name">{{ playlist.name }}</h1>
+        <h1 v-if="!isEditingName" @click="startEditingName" class="playlist-name editable">
+          {{ playlist.name }}
+        </h1>
+        <input
+          v-else
+          ref="editNameInput"
+          v-model="editableName"
+          class="playlist-name-input"
+          @blur="cancelEditName"
+          @keydown.enter="saveName"
+          @keydown.esc="cancelEditName"
+        />
         <p class="playlist-details">
           Created by {{ ownerName }} &middot; {{ tracks.length }} songs
         </p>
         <button @click="playPlaylist" class="play-button">Play</button>
-        <button @click="handleDeletePlaylist" class="delete-button">Delete</button>
+        <button v-if="isOwner" @click="isCollaboratorModalVisible = true" class="manage-button">
+          Manage
+        </button>
+        <button v-if="isCollaborator" @click="handleDeletePlaylist" class="delete-button">
+          Delete
+        </button>
       </div>
     </div>
     <TrackList
@@ -22,25 +44,39 @@
       @toggle-like="emit('toggle-like', $event)"
       @add-to-playlist="emit('add-to-playlist', $event)"
       @remove-from-playlist="handleRemoveTrack"
+      @reorder="handleReorder"
     />
   </div>
+  <CollaboratorsModal
+    v-if="isCollaboratorModalVisible"
+    :playlist="playlist"
+    @close="isCollaboratorModalVisible = false"
+    @collaborator-changed="fetchPlaylistData(playlist.id)"
+  />
   <div v-else class="not-found">Playlist not found.</div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getPlaylist,
   getUserProfile,
   removeTrackFromPlaylist,
   deletePlaylist,
+  updatePlaylistTrackOrder,
+  updatePlaylist,
 } from '../services/authService'
 import TrackList from '../components/TrackList.vue'
+import CollaboratorsModal from '../components/CollaboratorsModal.vue'
 import TrackListSkeleton from '../components/TrackListSkeleton.vue'
 
-defineProps({
+const props = defineProps({
   likedTrackIds: Array,
+  user: Object,
+  playQueue: Array,
+  recentlyPlayedTracks: Array,
+  userPlaylists: Array,
 })
 
 const emit = defineEmits([
@@ -49,7 +85,9 @@ const emit = defineEmits([
   'play-next',
   'toggle-like',
   'add-to-playlist',
+  'reorder',
   'playlist-deleted',
+  'profile-updated',
 ])
 
 const route = useRoute()
@@ -58,7 +96,17 @@ const playlist = ref(null)
 const tracks = ref([])
 const ownerName = ref('')
 const isLoading = ref(true)
+const isCollaboratorModalVisible = ref(false)
+const isEditingName = ref(false)
+const editableName = ref('')
+const editNameInput = ref(null)
 
+const isOwner = computed(
+  () => props.user && playlist.value && props.user.uid === playlist.value.ownerId,
+)
+const isCollaborator = computed(
+  () => props.user && playlist.value && playlist.value.collaborators.includes(props.user.uid),
+)
 const API_BASE_URL = 'https://discoveryprovider.audius.co/v1'
 const APP_NAME = 'wavebeat-demo'
 
@@ -118,6 +166,19 @@ const playFromPlaylist = ({ track }) => {
   emit('play-from-list', { sourceList: tracks.value, track })
 }
 
+const handleReorder = async (newOrder) => {
+  if (!playlist.value) return
+  // Optimistically update the UI
+  tracks.value = newOrder
+  const newTrackIds = newOrder.map((track) => track.id)
+  try {
+    await updatePlaylistTrackOrder(playlist.value.id, newTrackIds)
+  } catch (error) {
+    console.error('Failed to save new track order:', error)
+    // Optionally, revert the order here if the save fails
+  }
+}
+
 const handleRemoveTrack = async (trackToRemove) => {
   if (!playlist.value) return
   try {
@@ -127,6 +188,49 @@ const handleRemoveTrack = async (trackToRemove) => {
   } catch (error) {
     console.error('Failed to remove track:', error)
   }
+}
+
+const triggerArtworkUpload = async () => {
+  if (!isOwner.value) return
+
+  const newUrl = window.prompt(
+    'Enter a URL for the new playlist artwork:',
+    playlist.value.artworkUrl || '',
+  )
+
+  // Check if the user provided a URL and it's a valid-looking URL
+  if (newUrl && newUrl.trim() && newUrl.startsWith('http')) {
+    try {
+      await updatePlaylist(playlist.value.id, { artworkUrl: newUrl })
+      playlist.value.artworkUrl = newUrl
+    } catch (error) {
+      console.error('Failed to update artwork URL:', error)
+    }
+  }
+}
+
+const startEditingName = () => {
+  if (!isOwner.value) return
+  editableName.value = playlist.value.name
+  isEditingName.value = true
+  nextTick(() => {
+    editNameInput.value?.focus()
+  })
+}
+
+const saveName = async () => {
+  if (!isEditingName.value || !playlist.value) return
+  const newName = editableName.value.trim()
+  if (newName && newName !== playlist.value.name) {
+    await updatePlaylist(playlist.value.id, { name: newName })
+    playlist.value.name = newName
+  }
+  isEditingName.value = false
+}
+
+const cancelEditName = () => {
+  isEditingName.value = false
+  editableName.value = ''
 }
 
 const handleDeletePlaylist = async () => {
@@ -159,6 +263,47 @@ const handleDeletePlaylist = async () => {
   font-size: 6rem;
   color: #777;
   border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.artwork-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.artwork-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.playlist-artwork:hover .artwork-overlay {
+  opacity: 1;
+}
+.playlist-name.editable:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+.playlist-name-input {
+  font-size: 2.5rem;
+  font-weight: 900;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--brand-green);
+  color: var(--text-primary);
+  outline: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
 }
 .play-button {
   background-color: var(--brand-green);
@@ -169,6 +314,17 @@ const handleDeletePlaylist = async () => {
   font-weight: bold;
   cursor: pointer;
   margin-top: 1rem;
+}
+.manage-button {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--text-secondary);
+  border-radius: 50px;
+  padding: 0.8rem 2rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 1rem;
+  margin-left: 1rem;
 }
 .delete-button {
   background-color: transparent;

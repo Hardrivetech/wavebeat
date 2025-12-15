@@ -1,51 +1,57 @@
 <template>
   <div class="track-list">
     <h2 v-if="tracks.length > 0">{{ title }}</h2>
-    <div v-if="tracks.length === 0 && (hasSearched || !title)" class="no-results">
-      No results found.
-    </div>
-    <div
-      v-for="(track, index) in tracks"
-      :key="track.id"
-      class="track-item"
-      @click="playTrack(track, index)"
+    <div v-else-if="hasSearched || !title" class="no-results">No results found.</div>
+    <draggable
+      v-model="draggableTracks"
+      item-key="id"
+      handle=".handle"
+      :disabled="!isPlaylistContext"
     >
-      <div class="track-play-section">
-        <img :src="track.artwork['150x150']" alt="Track artwork" />
-        <div class="play-icon">▶</div>
-      </div>
-      <div class="track-details">
-        <div class="track-title">{{ track.title }}</div>
-        <router-link
-          :to="{ name: 'Artist', params: { handle: track.user.handle } }"
-          class="track-artist"
-          @click.stop
-        >
-          {{ track.user.name }}
-        </router-link>
-      </div>
-      <div class="track-duration">
-        {{ formatDuration(track.duration) }}
-      </div>
-      <button
-        :class="['like-button', { 'is-liked': isLiked(track.id) }]"
-        @click.stop="$emit('toggle-like', track)"
-      >
-        ♥
-      </button>
-      <TrackActions
-        :track="track"
-        :is-playlist-context="isPlaylistContext"
-        @add-to-queue="$emit('add-to-queue', track)"
-        @play-next="$emit('play-next', track)"
-        @add-to-playlist="$emit('add-to-playlist', track)"
-        @remove-from-playlist="$emit('remove-from-playlist', track)"
-      />
-    </div>
+      <template #item="{ element: track, index }">
+        <div class="track-item" @click="playTrack(track, index)">
+          <div class="track-number">{{ index + 1 }}</div>
+          <div class="handle" v-if="isPlaylistContext" @click.stop>⠿</div>
+          <div class="track-play-section">
+            <img :src="track.artwork['150x150']" alt="Track artwork" />
+            <div class="play-icon">▶</div>
+          </div>
+          <div class="track-details">
+            <div class="track-title">{{ track.title }}</div>
+            <router-link
+              :to="{ name: 'Artist', params: { handle: track.user.handle } }"
+              class="track-artist"
+              @click.stop
+            >
+              {{ track.user.name }}
+            </router-link>
+          </div>
+          <div class="track-duration">
+            {{ formatDuration(track.duration) }}
+          </div>
+          <button
+            :class="['like-button', { 'is-liked': isLiked(track.id) }]"
+            @click.stop="$emit('toggle-like', track)"
+          >
+            ♥
+          </button>
+          <TrackActions
+            :track="track"
+            :is-playlist-context="isPlaylistContext"
+            @add-to-queue="$emit('add-to-queue', track)"
+            @play-next="$emit('play-next', track)"
+            @add-to-playlist="$emit('add-to-playlist', track)"
+            @remove-from-playlist="$emit('remove-from-playlist', track)"
+          />
+        </div>
+      </template>
+    </draggable>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import draggable from 'vuedraggable-es'
 import TrackActions from './TrackActions.vue'
 
 const props = defineProps({
@@ -78,6 +84,7 @@ const emit = defineEmits([
   'toggle-like',
   'add-to-playlist',
   'remove-from-playlist',
+  'reorder',
 ])
 
 const isLiked = (trackId) => {
@@ -87,6 +94,13 @@ const isLiked = (trackId) => {
 const playTrack = (track, index) => {
   emit('play-track', { track, index })
 }
+
+const draggableTracks = computed({
+  get: () => props.tracks,
+  set: (newOrder) => {
+    emit('reorder', newOrder)
+  },
+})
 
 const formatDuration = (seconds) => {
   if (isNaN(seconds)) return '0:00'
@@ -103,6 +117,13 @@ const formatDuration = (seconds) => {
   gap: 0.5rem;
 }
 
+.track-number {
+  color: var(--text-secondary);
+  width: 20px;
+  text-align: right;
+  font-size: 1rem;
+}
+
 h2 {
   font-size: 1.5rem;
   margin-bottom: 1rem;
@@ -113,21 +134,40 @@ h2 {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.5rem;
+  padding: 0.75rem;
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  padding: 0 0.5rem;
+  font-size: 1.5rem;
 }
 
 .track-item:hover {
   background-color: var(--bg-elevation);
 }
 
+.track-item:hover .track-number {
+  display: none;
+}
+
 .track-item:hover .play-icon {
   opacity: 1;
 }
 
-.track-item:hover img {
+.track-item .play-icon {
+  display: none;
+}
+
+.track-item:hover .play-icon {
+  display: block;
+}
+
+.track-item:hover .track-play-section img {
   opacity: 0.4;
 }
 
@@ -144,7 +184,7 @@ h2 {
   left: 50%;
   transform: translate(-50%, -50%);
   color: white;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none; /* So it doesn't interfere with the click */

@@ -1,5 +1,4 @@
 import { auth, db } from '../firebase'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   doc,
   setDoc,
@@ -15,6 +14,7 @@ import {
   getDocs,
   deleteDoc,
 } from 'firebase/firestore'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 
 export const signup = async (email, password, displayName) => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password)
@@ -77,15 +77,16 @@ export const createPlaylist = async (userId, name) => {
     ownerId: userId,
     name: name,
     trackIds: [],
+    collaborators: [userId], // Add owner as the first collaborator
     createdAt: serverTimestamp(),
   })
-  return { id: newPlaylistRef.id, name, trackIds: [] }
+  return { id: newPlaylistRef.id, name, trackIds: [], ownerId: userId, collaborators: [userId] }
 }
 
 export const getUserPlaylists = async (userId) => {
   if (!userId) return []
   const playlistsColRef = collection(db, 'playlists')
-  const q = query(playlistsColRef, where('ownerId', '==', userId))
+  const q = query(playlistsColRef, where('collaborators', 'array-contains', userId))
   const querySnapshot = await getDocs(q)
   return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
 }
@@ -123,4 +124,34 @@ export const deletePlaylist = (playlistId) => {
 export const updateUserProfile = (userId, data) => {
   const userDocRef = doc(db, 'users', userId)
   return updateDoc(userDocRef, data)
+}
+
+export const updatePlaylist = (playlistId, data) => {
+  const playlistDocRef = doc(db, 'playlists', playlistId)
+  return updateDoc(playlistDocRef, data)
+}
+
+export const updatePlaylistTrackOrder = (playlistId, trackIds) => {
+  const playlistDocRef = doc(db, 'playlists', playlistId)
+  return updateDoc(playlistDocRef, { trackIds })
+}
+
+export const findUserByEmail = async (email) => {
+  const usersColRef = collection(db, 'users')
+  const q = query(usersColRef, where('email', '==', email))
+  const querySnapshot = await getDocs(q)
+  if (querySnapshot.empty) {
+    return null
+  }
+  return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() }
+}
+
+export const addCollaborator = (playlistId, userId) => {
+  const playlistDocRef = doc(db, 'playlists', playlistId)
+  return updateDoc(playlistDocRef, { collaborators: arrayUnion(userId) })
+}
+
+export const removeCollaborator = (playlistId, userId) => {
+  const playlistDocRef = doc(db, 'playlists', playlistId)
+  return updateDoc(playlistDocRef, { collaborators: arrayRemove(userId) })
 }

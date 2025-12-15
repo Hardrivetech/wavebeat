@@ -4,7 +4,7 @@
     <SearchBar />
     <nav>
       <div v-if="user">
-        <router-link to="/collection/tracks">My Library</router-link>
+        <router-link to="/collection">My Library</router-link>
         <router-link :to="'/profile'">{{ user.displayName || user.email }}</router-link>
         <button @click="handleLogout">Logout</button>
       </div>
@@ -29,6 +29,7 @@
       @toggle-like="toggleLike"
       @add-to-playlist="openAddToPlaylistModal"
       @playlist-deleted="handlePlaylistDeleted"
+      @play-playlist="handlePlayPlaylist"
       @profile-updated="handleProfileUpdated"
     >
     </router-view>
@@ -229,6 +230,23 @@ const handleProfileUpdated = (data) => {
   }
 }
 
+const handlePlayPlaylist = async (playlist) => {
+  if (!playlist.trackIds || playlist.trackIds.length === 0) return
+
+  try {
+    const idParams = playlist.trackIds.map((id) => `id=${id}`).join('&')
+    const response = await fetch(`${API_BASE_URL}/tracks?${idParams}&app_name=${APP_NAME}`)
+    const result = await response.json()
+    const tracks = playlist.trackIds
+      .map((id) => result.data.find((t) => t.id === id))
+      .filter(Boolean)
+
+    playFromList({ sourceList: tracks, track: tracks[0] })
+  } catch (error) {
+    console.error('Failed to fetch playlist tracks for playback:', error)
+  }
+}
+
 // --- PLAYER CONTROLS LOGIC ---
 
 const toggleShuffle = () => {
@@ -282,6 +300,14 @@ const playNextInQueue = (track) => {
 const playNext = () => {
   if (playQueue.value.length === 0) return
 
+  // Repeat-one has priority and is handled by the <audio> element's loop attribute.
+  // If a track just ended and repeat-one is on, it will loop automatically.
+  // We only need to intervene if the user *clicks* the next button.
+  if (repeatMode.value === 'one') {
+    getTrackStream(currentTrack.value) // Re-trigger the same song
+    return
+  }
+
   if (isShuffleActive.value) {
     // Play a random track from the queue, avoiding the current one if possible
     let randomIndex
@@ -289,20 +315,24 @@ const playNext = () => {
       randomIndex = Math.floor(Math.random() * playQueue.value.length)
     } while (playQueue.value.length > 1 && randomIndex === currentQueueIndex.value)
     currentQueueIndex.value = randomIndex
-    getTrackStream(playQueue.value[currentQueueIndex.value])
-    return
-  }
-
-  const isAtEndOfQueue = currentQueueIndex.value >= playQueue.value.length - 1
-
-  if (!isAtEndOfQueue) {
+  } else {
+    // Move to the next track in order
     currentQueueIndex.value++
-    const nextTrack = playQueue.value[currentQueueIndex.value]
-    getTrackStream(nextTrack)
-  } else if (repeatMode.value === 'all') {
-    currentQueueIndex.value = 0
-    getTrackStream(playQueue.value[0])
   }
+
+  // Handle end of queue
+  if (currentQueueIndex.value >= playQueue.value.length) {
+    if (repeatMode.value === 'all') {
+      currentQueueIndex.value = 0 // Loop back to the start
+    } else {
+      // Stop playback if we're at the end and not repeating
+      currentTrack.value = null
+      audioSrc.value = ''
+      return
+    }
+  }
+
+  getTrackStream(playQueue.value[currentQueueIndex.value])
 }
 
 const playPrevious = () => {
@@ -317,9 +347,9 @@ const playPrevious = () => {
 <style>
 /* Global styles */
 :root {
-  --bg-primary: #121212;
-  --bg-secondary: #181818;
-  --bg-elevation: #282828;
+  --bg-primary: #000000;
+  --bg-secondary: #121212;
+  --bg-elevation: #1a1a1a;
   --text-primary: #ffffff;
   --text-secondary: #b3b3b3;
   --brand-green: #1db954;
@@ -327,8 +357,17 @@ const playPrevious = () => {
 }
 
 body {
-  background-color: var(--bg-primary);
   margin: 0;
+  background-color: var(--bg-primary);
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 #app {
@@ -336,7 +375,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-primary);
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
   padding-bottom: 120px; /* Make space for the fixed player */
@@ -346,13 +385,15 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
+  padding: 0 1rem;
 }
 
 h1 {
   color: var(--text-primary);
   font-size: 2.5rem;
   font-weight: 900;
+  letter-spacing: -1px;
 }
 
 nav {
@@ -378,10 +419,11 @@ nav a:hover {
 
 nav a.signup-button {
   background-color: var(--brand-green);
-  color: white;
+  color: var(--bg-primary);
 }
 
 nav a.signup-button:hover {
   background-color: var(--brand-green-hover);
+  color: var(--bg-primary);
 }
 </style>

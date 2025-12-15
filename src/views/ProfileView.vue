@@ -14,7 +14,11 @@
 
     <div v-if="isLoading">Loading...</div>
     <div v-else>
-      <PlaylistList v-if="userPlaylists.length > 0" :playlists="userPlaylists" />
+      <PlaylistList
+        v-if="userPlaylists.length > 0"
+        :playlists="userPlaylists"
+        @play-playlist="emit('play-playlist', $event)"
+      />
 
       <TrackList
         v-if="likedTracks.length > 0"
@@ -49,6 +53,7 @@ const emit = defineEmits([
   'play-next',
   'toggle-like',
   'add-to-playlist',
+  'play-playlist',
   'profile-updated',
 ])
 

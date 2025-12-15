@@ -25,6 +25,7 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  user: Object,
 })
 
 const emit = defineEmits([

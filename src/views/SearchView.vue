@@ -29,6 +29,7 @@ import TrackListSkeleton from '../components/TrackListSkeleton.vue'
 
 defineProps({
   likedTrackIds: Array,
+  user: Object,
 })
 
 const emit = defineEmits([

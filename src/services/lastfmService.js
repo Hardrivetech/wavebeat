@@ -1,6 +1,3 @@
-const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/'
-const API_KEY = import.meta.env.VITE_LASTFM_API_KEY
-
 /**
  * Fetches artist information from the Last.fm API.
  * @param {string} artistName The name of the artist.
@@ -8,8 +5,9 @@ const API_KEY = import.meta.env.VITE_LASTFM_API_KEY
  */
 export const getArtistInfo = async (artistName) => {
   try {
+    // Call our own serverless function instead of the public API
     const response = await fetch(
-      `${LASTFM_API_BASE}?method=artist.getinfo&artist=${encodeURIComponent(artistName)}&api_key=${API_KEY}&format=json`,
+      `/.netlify/functions/getArtistInfo?artist=${encodeURIComponent(artistName)}`,
     )
     if (!response.ok) throw new Error('Failed to fetch from Last.fm')
     const data = await response.json()

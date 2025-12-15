@@ -1,0 +1,11 @@
+[build]
+  # Directory where serverless functions are stored
+  functions = "netlify/functions"
+
+[functions]
+  # Ensure dependencies for functions are installed
+  node_bundler = "esbuild"
+
+[dev]
+  # Make functions available during local development
+  functions = "netlify/functions"

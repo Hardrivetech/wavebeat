@@ -4,39 +4,59 @@
     <div v-if="isOpen" class="menu-content">
       <div @click="emitAction('add-to-queue')" class="menu-item">Add to Queue</div>
       <div @click="emitAction('play-next')" class="menu-item">Play Next</div>
+      <div v-if="!isPlaylistContext" @click="emitAction('add-to-playlist')" class="menu-item">
+        Add to playlist
+      </div>
+      <div
+        v-if="isPlaylistContext"
+        @click="emitAction('remove-from-playlist')"
+        class="menu-item menu-item-danger"
+      >
+        Remove from playlist
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref } from 'vue'
 
 const props = defineProps({
   track: {
     type: Object,
     required: true,
   },
-});
+  isPlaylistContext: {
+    type: Boolean,
+    default: false,
+  },
+})
 
-const emit = defineEmits(['add-to-queue', 'play-next', 'toggle-like']);
-const isOpen = ref(false);
+const emit = defineEmits([
+  'add-to-queue',
+  'play-next',
+  'toggle-like',
+  'add-to-playlist',
+  'remove-from-playlist',
+])
+const isOpen = ref(false)
 
 const toggleMenu = () => {
-  isOpen.value = !isOpen.value;
+  isOpen.value = !isOpen.value
   if (isOpen.value) {
     // Close menu if clicking outside
-    window.addEventListener('click', closeMenu, { once: true });
+    window.addEventListener('click', closeMenu, { once: true })
   }
-};
+}
 
 const closeMenu = () => {
-  isOpen.value = false;
-};
+  isOpen.value = false
+}
 
 const emitAction = (action) => {
-  emit(action, props.track);
-  closeMenu();
-};
+  emit(action, props.track)
+  closeMenu()
+}
 </script>
 
 <style scoped>
@@ -81,5 +101,9 @@ const emitAction = (action) => {
 
 .menu-item:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.menu-item-danger:hover {
+  background-color: #c53030;
 }
 </style>

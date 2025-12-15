@@ -1,254 +1,276 @@
 <template>
   <header>
-    <h1 @click="goHome" style="cursor: pointer;">🎵 WaveBeat</h1>
+    <!-- ... existing header ... -->
+    <h1 @click="$router.push('/')" style="cursor: pointer">🎵 WaveBeat</h1>
+    <nav>
+      <div v-if="user">
+        <span>{{ user.displayName || user.email }}</span>
+        <button @click="handleLogout">Logout</button>
+      </div>
+      <div v-else>
+        <router-link to="/login">Login</router-link>
+        <router-link to="/signup" class="signup-button">Sign Up</router-link>
+      </div>
+    </nav>
   </header>
 
   <main>
-    <SearchBar @search="searchTracks" />
-    <div v-if="isLoading" class="loading">Loading...</div>
-    <div v-else>
-      <!-- Show search results if they exist -->
-      <TrackList
-        v-if="tracks.length > 0"
-        :tracks="tracks"
-        title="Search Results"
-        :has-searched="hasSearched"
-        :liked-track-ids="likedTrackIds"
-        @play-track="playFromList(tracks, $event)"
-        @add-to-queue="addToQueue"
-        @play-next="playNextInQueue"
-        @toggle-like="toggleLike"
-      />
-      <!-- Otherwise, show discovery content -->
-      <div v-else>
-        <TrackList
-          v-if="likedTracks.length > 0"
-          :tracks="likedTracks"
-          title="💚 Liked Songs"
-          :liked-track-ids="likedTrackIds"
-          @play-track="playFromList(likedTracks, $event)"
-          @add-to-queue="addToQueue"
-          @play-next="playNextInQueue"
-          @toggle-like="toggleLike"
-        />
-        <TrackList
-          :tracks="trendingTracks"
-          title="🔥 Trending on Audius"
-          :liked-track-ids="likedTrackIds"
-          @play-track="playFromList(trendingTracks, $event)"
-          @add-to-queue="addToQueue"
-          @play-next="playNextInQueue"
-          @toggle-like="toggleLike"
-        />
-      </div>
-    </div>
+    <!-- The router will render the correct page component here -->
+    <router-view
+      :liked-track-ids="likedTrackIds"
+      :play-queue="playQueue"
+      :user-playlists="userPlaylists"
+      @play-from-list="playFromList"
+      @add-to-queue="addToQueue"
+      @play-next="playNextInQueue"
+      @toggle-like="toggleLike"
+      @add-to-playlist="openAddToPlaylistModal"
+    >
+    </router-view>
   </main>
 
-  <AudioPlayer 
-    :track="currentTrack" 
-    :audio-src="audioSrc" 
+  <AudioPlayer
+    :track="currentTrack"
+    :audio-src="audioSrc"
     :liked-track-ids="likedTrackIds"
     :is-shuffle-active="isShuffleActive"
     :repeat-mode="repeatMode"
-    @track-ended="playNext" @play-next="playNext" @play-previous="playPrevious"
+    @track-ended="playNext"
+    @play-next="playNext"
+    @play-previous="playPrevious"
     @toggle-like="toggleLike"
     @toggle-shuffle="toggleShuffle"
     @cycle-repeat="cycleRepeat"
+    @toggle-queue="toggleQueuePanel"
+  />
+
+  <QueuePanel
+    :is-visible="isQueuePanelVisible"
+    :queue="playQueue"
+    :current-track="currentTrack"
+    :current-queue-index="currentQueueIndex"
+    @close="toggleQueuePanel"
+    @play-from-queue="playFromQueueIndex"
+  />
+
+  <AddToPlaylistModal
+    v-if="isPlaylistModalVisible"
+    :user="user"
+    :track="trackForPlaylist"
+    :playlists="userPlaylists"
+    @close="isPlaylistModalVisible = false"
+    @playlist-created="handlePlaylistCreated"
+    @track-added="handleTrackAddedToPlaylist"
   />
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import SearchBar from './components/SearchBar.vue';
-import TrackList from './components/TrackList.vue';
-import AudioPlayer from './components/AudioPlayer.vue';
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import AudioPlayer from './components/AudioPlayer.vue'
+import QueuePanel from './components/QueuePanel.vue'
+import AddToPlaylistModal from './components/AddToPlaylistModal.vue'
+import {
+  onAuthStateChanged,
+  logout,
+  getUserProfile,
+  likeTrack,
+  unlikeTrack,
+  getUserPlaylists,
+} from './services/authService'
 
 // You should get your own App Name from Audius for a real app, but 'wavebeat-demo' is fine for now.
-const APP_NAME = 'wavebeat-demo';
-const API_BASE_URL = 'https://discoveryprovider.audius.co/v1';
+const APP_NAME = 'wavebeat-demo'
+const API_BASE_URL = 'https://discoveryprovider.audius.co/v1'
 
-const tracks = ref([]);
-const trendingTracks = ref([]);
-const playQueue = ref([]);
-const currentQueueIndex = ref(-1);
-const currentTrack = ref(null);
-const audioSrc = ref('');
-const isLoading = ref(false);
-const hasSearched = ref(false);
-const likedTrackIds = ref([]);
-const isShuffleActive = ref(false);
-const repeatMode = ref('off'); // 'off', 'all', 'one'
+const playQueue = ref([])
+const currentQueueIndex = ref(-1)
+const currentTrack = ref(null)
+const audioSrc = ref('')
+const likedTrackIds = ref([])
+const isShuffleActive = ref(false)
+const repeatMode = ref('off') // 'off', 'all', 'one'
+const user = ref(null)
+const isQueuePanelVisible = ref(false)
+const isPlaylistModalVisible = ref(false)
+const trackForPlaylist = ref(null)
+const userPlaylists = ref([])
+const router = useRouter()
 
-const likedTracks = computed(() => {
-  // Create a pool of all unique tracks from different sources
-  const allTracks = [...trendingTracks.value, ...tracks.value, ...playQueue.value];
-  const uniqueTracks = [...new Map(allTracks.map(item => [item['id'], item])).values()];
-  // Filter this pool to get the full track objects for our liked IDs
-  return uniqueTracks.filter(track => likedTrackIds.value.includes(track.id));
-});
-
-// --- API & DATA FETCHING ---
+// --- AUTHENTICATION ---
 
 onMounted(() => {
-  // Load liked songs from localStorage on startup
-  const savedLikes = localStorage.getItem('wavebeat_liked_songs');
-  if (savedLikes) {
-    likedTrackIds.value = JSON.parse(savedLikes);
-  }
-  fetchTrendingTracks();
-});
+  onAuthStateChanged(async (firebaseUser) => {
+    if (firebaseUser) {
+      // User is signed in, fetch their profile from Firestore.
+      const userProfile = await getUserProfile(firebaseUser.uid)
+      user.value = userProfile || firebaseUser // Fallback to auth user object if profile doesn't exist
 
-const goHome = () => {
-  // Clear search results to return to the home/discover view
-  tracks.value = [];
-  hasSearched.value = false;
-};
+      // Load liked songs from the user's Firestore profile
+      if (userProfile && userProfile.liked_songs) {
+        likedTrackIds.value = userProfile.liked_songs
+      }
 
-const fetchTrendingTracks = async () => {
-  isLoading.value = true;
-  try {
-    const response = await fetch(`${API_BASE_URL}/tracks/trending?app_name=${APP_NAME}`);
-    if (!response.ok) throw new Error('Failed to fetch trending tracks');
-    const result = await response.json();
-    trendingTracks.value = result.data || [];
-  } catch (error) {
-    console.error(error);
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const searchTracks = async (query) => {
-  isLoading.value = true;
-  hasSearched.value = true;
-  tracks.value = []; // Clear previous results
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/tracks/search?query=${encodeURIComponent(query)}&app_name=${APP_NAME}`
-    );
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
+      // Load user's playlists
+      userPlaylists.value = await getUserPlaylists(firebaseUser.uid)
+    } else {
+      user.value = null
+      // Clear user-specific data
+      likedTrackIds.value = []
+      userPlaylists.value = []
     }
-    const result = await response.json();
-    tracks.value = result.data || [];
+  })
+})
+
+const handleLogout = async () => {
+  try {
+    await logout()
+    router.push('/login')
   } catch (error) {
-    console.error('Failed to search tracks:', error);
-    tracks.value = []; // Ensure tracks are empty on error
-  } finally {
-    isLoading.value = false;
+    console.error('Error logging out:', error)
   }
-};
+}
 
 const getTrackStream = async (track) => {
   if (!track) {
-    audioSrc.value = '';
-    currentTrack.value = null;
-    return;
+    audioSrc.value = ''
+    currentTrack.value = null
+    return
   }
-  currentTrack.value = track;
+  currentTrack.value = track
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/tracks/${track.id}/stream?app_name=${APP_NAME}`
-    );
-    if (!response.ok) throw new Error('Could not fetch stream URL');
-    audioSrc.value = response.url;
+    const response = await fetch(`${API_BASE_URL}/tracks/${track.id}/stream?app_name=${APP_NAME}`)
+    if (!response.ok) throw new Error('Could not fetch stream URL')
+    audioSrc.value = response.url
   } catch (error) {
-    console.error('Failed to get track stream:', error);
-    audioSrc.value = '';
+    console.error('Failed to get track stream:', error)
+    audioSrc.value = ''
     // Try playing the next song if the current one fails
-    playNext();
+    playNext()
   }
-};
+}
 
 // --- LIKED SONGS LOGIC ---
 
-const toggleLike = (track) => {
-  const trackId = track.id;
-  const index = likedTrackIds.value.indexOf(trackId);
-  if (index === -1) {
-    likedTrackIds.value.push(trackId);
-  } else {
-    likedTrackIds.value.splice(index, 1);
+const toggleLike = async (track) => {
+  if (!user.value) {
+    // If user is not logged in, maybe prompt them to sign up/login
+    router.push('/login')
+    return
   }
-  // Save the updated list to localStorage
-  localStorage.setItem('wavebeat_liked_songs', JSON.stringify(likedTrackIds.value));
-};
+
+  const trackId = track.id
+  const index = likedTrackIds.value.indexOf(trackId)
+
+  if (index === -1) {
+    likedTrackIds.value.push(trackId)
+    await likeTrack(user.value.uid, trackId)
+  } else {
+    likedTrackIds.value.splice(index, 1)
+    await unlikeTrack(user.value.uid, trackId)
+  }
+}
+
+// --- PLAYLIST MODAL ---
+const openAddToPlaylistModal = (track) => {
+  trackForPlaylist.value = track
+  isPlaylistModalVisible.value = true
+}
+
+const handlePlaylistCreated = (newPlaylist) => {
+  userPlaylists.value.push(newPlaylist)
+}
+
+const handleTrackAddedToPlaylist = ({ playlistId, trackId }) => {
+  const playlist = userPlaylists.value.find((p) => p.id === playlistId)
+  if (playlist && !playlist.trackIds.includes(trackId)) {
+    playlist.trackIds.push(trackId)
+  }
+}
 
 // --- PLAYER CONTROLS LOGIC ---
 
 const toggleShuffle = () => {
-  isShuffleActive.value = !isShuffleActive.value;
-};
+  isShuffleActive.value = !isShuffleActive.value
+}
 
 const cycleRepeat = () => {
-  const modes = ['off', 'all', 'one'];
-  const currentIndex = modes.indexOf(repeatMode.value);
-  repeatMode.value = modes[(currentIndex + 1) % modes.length];
-};
+  const modes = ['off', 'all', 'one']
+  const currentIndex = modes.indexOf(repeatMode.value)
+  repeatMode.value = modes[(currentIndex + 1) % modes.length]
+}
+
+const toggleQueuePanel = () => {
+  isQueuePanelVisible.value = !isQueuePanelVisible.value
+}
 
 // --- QUEUE & PLAYBACK LOGIC ---
 
-const playFromList = (sourceList, { track, index }) => {
-  // The source list (trending or search) becomes the new queue.
-  playQueue.value = [...sourceList];
-  currentQueueIndex.value = sourceList.findIndex(t => t.id === track.id);
-  const trackToPlay = playQueue.value[currentQueueIndex.value];
-  getTrackStream(trackToPlay);
-};
+const playFromList = ({ sourceList, track }) => {
+  playQueue.value = [...sourceList]
+  currentQueueIndex.value = playQueue.value.findIndex((t) => t.id === track.id)
+  const trackToPlay = playQueue.value[currentQueueIndex.value]
+  getTrackStream(trackToPlay)
+}
+
+const playFromQueueIndex = (index) => {
+  currentQueueIndex.value = index
+  const trackToPlay = playQueue.value[index]
+  getTrackStream(trackToPlay)
+}
 
 const addToQueue = (track) => {
-  playQueue.value.push(track);
+  playQueue.value.push(track)
   // If nothing is playing, start playing the added song.
   if (!currentTrack.value) {
-    currentQueueIndex.value = playQueue.value.length - 1;
-    getTrackStream(track);
+    currentQueueIndex.value = playQueue.value.length - 1
+    getTrackStream(track)
   }
-};
+}
 
 const playNextInQueue = (track) => {
   if (currentQueueIndex.value === -1) {
     // If nothing is playing, just add it to the queue and play it.
-    addToQueue(track);
+    addToQueue(track)
   } else {
     // Insert the track right after the currently playing one.
-    playQueue.value.splice(currentQueueIndex.value + 1, 0, track);
+    playQueue.value.splice(currentQueueIndex.value + 1, 0, track)
   }
-};
+}
 
 const playNext = () => {
-  if (playQueue.value.length === 0) return;
+  if (playQueue.value.length === 0) return
 
   if (isShuffleActive.value) {
     // Play a random track from the queue, avoiding the current one if possible
-    let randomIndex;
+    let randomIndex
     do {
-      randomIndex = Math.floor(Math.random() * playQueue.value.length);
-    } while (playQueue.value.length > 1 && randomIndex === currentQueueIndex.value);
-    currentQueueIndex.value = randomIndex;
-    getTrackStream(playQueue.value[currentQueueIndex.value]);
-    return;
+      randomIndex = Math.floor(Math.random() * playQueue.value.length)
+    } while (playQueue.value.length > 1 && randomIndex === currentQueueIndex.value)
+    currentQueueIndex.value = randomIndex
+    getTrackStream(playQueue.value[currentQueueIndex.value])
+    return
   }
 
-  const isAtEndOfQueue = currentQueueIndex.value >= playQueue.value.length - 1;
+  const isAtEndOfQueue = currentQueueIndex.value >= playQueue.value.length - 1
 
   if (!isAtEndOfQueue) {
-    currentQueueIndex.value++;
-    const nextTrack = playQueue.value[currentQueueIndex.value];
-    getTrackStream(nextTrack);
+    currentQueueIndex.value++
+    const nextTrack = playQueue.value[currentQueueIndex.value]
+    getTrackStream(nextTrack)
   } else if (repeatMode.value === 'all') {
-    currentQueueIndex.value = 0;
-    getTrackStream(playQueue.value[0]);
+    currentQueueIndex.value = 0
+    getTrackStream(playQueue.value[0])
   }
-};
+}
 
 const playPrevious = () => {
   if (currentQueueIndex.value > 0) {
-    currentQueueIndex.value--;
-    const prevTrack = playQueue.value[currentQueueIndex.value];
-    getTrackStream(prevTrack);
+    currentQueueIndex.value--
+    const prevTrack = playQueue.value[currentQueueIndex.value]
+    getTrackStream(prevTrack)
   }
-};
-
+}
 </script>
 
 <style>
@@ -280,7 +302,9 @@ body {
 }
 
 header {
-  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
 }
 
@@ -290,10 +314,33 @@ h1 {
   font-weight: 900;
 }
 
-.loading {
-  text-align: center;
-  font-size: 1.2rem;
+nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+nav a {
   color: var(--text-secondary);
-  padding: 3rem;
+  text-decoration: none;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+nav a:hover {
+  color: var(--text-primary);
+}
+
+nav a.signup-button {
+  background-color: var(--brand-green);
+  color: white;
+}
+
+nav a.signup-button:hover {
+  background-color: var(--brand-green-hover);
 }
 </style>

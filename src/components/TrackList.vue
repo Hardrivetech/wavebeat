@@ -21,19 +21,26 @@
       <div class="track-duration">
         {{ formatDuration(track.duration) }}
       </div>
-      <button 
-        :class="['like-button', { 'is-liked': isLiked(track.id) }]" 
+      <button
+        :class="['like-button', { 'is-liked': isLiked(track.id) }]"
         @click.stop="$emit('toggle-like', track)"
       >
         ♥
       </button>
-      <TrackActions :track="track" @add-to-queue="$emit('add-to-queue', track)" @play-next="$emit('play-next', track)" />
+      <TrackActions
+        :track="track"
+        :is-playlist-context="isPlaylistContext"
+        @add-to-queue="$emit('add-to-queue', track)"
+        @play-next="$emit('play-next', track)"
+        @add-to-playlist="$emit('add-to-playlist', track)"
+        @remove-from-playlist="$emit('remove-from-playlist', track)"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import TrackActions from './TrackActions.vue';
+import TrackActions from './TrackActions.vue'
 
 const props = defineProps({
   tracks: {
@@ -42,7 +49,7 @@ const props = defineProps({
   },
   title: {
     type: String,
-    default: ''
+    default: '',
   },
   hasSearched: {
     type: Boolean,
@@ -50,26 +57,37 @@ const props = defineProps({
   },
   likedTrackIds: {
     type: Array,
-    default: () => []
-  }
-});
+    default: () => [],
+  },
+  isPlaylistContext: {
+    type: Boolean,
+    default: false,
+  },
+})
 
-const emit = defineEmits(['play-track', 'add-to-queue', 'play-next', 'toggle-like']);
+const emit = defineEmits([
+  'play-track',
+  'add-to-queue',
+  'play-next',
+  'toggle-like',
+  'add-to-playlist',
+  'remove-from-playlist',
+])
 
 const isLiked = (trackId) => {
-  return props.likedTrackIds.includes(trackId);
-};
+  return props.likedTrackIds.includes(trackId)
+}
 
 const playTrack = (track, index) => {
-  emit('play-track', { track, index });
-};
+  emit('play-track', { track, index })
+}
 
 const formatDuration = (seconds) => {
-  if (isNaN(seconds)) return '0:00';
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
+  if (isNaN(seconds)) return '0:00'
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.floor(seconds % 60)
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+}
 </script>
 
 <style scoped>
@@ -153,33 +171,33 @@ h2 {
 
 .track-duration {
   color: var(--text-secondary);
-  font-size: 0.9rem;  
+  font-size: 0.9rem;
   padding-right: 1rem;
 }
 
 .like-button {
-    background: none;
-    border: none;
-    color: transparent; /* Hide by default */
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: color 0.2s;
-    margin-left: auto;
+  background: none;
+  border: none;
+  color: transparent; /* Hide by default */
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-left: auto;
 }
 
 /* Show on hover or if liked */
 .track-item:hover .like-button,
 .like-button.is-liked {
-    color: var(--text-secondary);
+  color: var(--text-secondary);
 }
 
 .like-button.is-liked {
-    color: var(--brand-green);
+  color: var(--brand-green);
 }
 
 .no-results {
-    color: var(--text-secondary);
-    text-align: center;
-    grid-column: 1 / -1; /* Span all columns */
+  color: var(--text-secondary);
+  text-align: center;
+  grid-column: 1 / -1; /* Span all columns */
 }
 </style>

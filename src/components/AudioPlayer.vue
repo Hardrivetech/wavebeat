@@ -4,7 +4,13 @@
       <img :src="track.artwork['150x150']" alt="Current track artwork" />
       <div>
         <div class="player-title">{{ track.title }}</div>
-        <div class="player-artist">{{ track.user.name }}</div>
+        <router-link
+          :to="{ name: 'Artist', params: { handle: track.user.handle } }"
+          class="player-artist"
+          @click.stop
+        >
+          {{ track.user.name }}
+        </router-link>
       </div>
       <button
         :class="['like-button', { 'is-liked': isLiked }]"
@@ -237,6 +243,11 @@ const formatTime = (seconds) => {
 .player-artist {
   color: var(--text-secondary);
   font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.player-artist:hover {
+  text-decoration: underline;
 }
 
 .player-center {

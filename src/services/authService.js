@@ -13,6 +13,7 @@ import {
   query,
   where,
   getDocs,
+  deleteDoc,
 } from 'firebase/firestore'
 
 export const signup = async (email, password, displayName) => {
@@ -112,4 +113,14 @@ export const removeTrackFromPlaylist = (playlistId, trackId) => {
   return updateDoc(playlistDocRef, {
     trackIds: arrayRemove(trackId),
   })
+}
+
+export const deletePlaylist = (playlistId) => {
+  const playlistDocRef = doc(db, 'playlists', playlistId)
+  return deleteDoc(playlistDocRef)
+}
+
+export const updateUserProfile = (userId, data) => {
+  const userDocRef = doc(db, 'users', userId)
+  return updateDoc(userDocRef, data)
 }

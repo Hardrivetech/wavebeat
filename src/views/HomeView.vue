@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- ... existing template ... -->
-    <SearchBar @search="searchTracks" />
+
     <div v-if="isLoading" class="loading">Loading...</div>
     <div v-else>
       <!-- Show search results if they exist -->
@@ -19,6 +19,17 @@
       />
       <!-- Otherwise, show discovery content -->
       <div v-else>
+        <TrackList
+          v-if="recentlyPlayedTracks.length > 0"
+          :tracks="recentlyPlayedTracks"
+          title="🎧 Recently Played"
+          :liked-track-ids="likedTrackIds"
+          @play-track="playFromList(recentlyPlayedTracks, $event)"
+          @add-to-queue="emit('add-to-queue', $event)"
+          @play-next="emit('play-next', $event)"
+          @toggle-like="emit('toggle-like', $event)"
+          @add-to-playlist="emit('add-to-playlist', $event)"
+        />
         <PlaylistList v-if="userPlaylists.length > 0" :playlists="userPlaylists" />
         <TrackList
           v-if="likedTracks.length > 0"
@@ -48,7 +59,6 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import SearchBar from '../components/SearchBar.vue'
 import TrackList from '../components/TrackList.vue'
 import PlaylistList from '../components/PlaylistList.vue'
 
@@ -62,6 +72,10 @@ const props = defineProps({
     default: () => [],
   },
   userPlaylists: {
+    type: Array,
+    default: () => [],
+  },
+  recentlyPlayedTracks: {
     type: Array,
     default: () => [],
   },
@@ -107,27 +121,6 @@ const fetchTrendingTracks = async () => {
     trendingTracks.value = result.data || []
   } catch (error) {
     console.error(error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const searchTracks = async (query) => {
-  isLoading.value = true
-  hasSearched.value = true
-  tracks.value = [] // Clear previous results
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/tracks/search?query=${encodeURIComponent(query)}&app_name=${APP_NAME}`,
-    )
-    if (!response.ok) {
-      throw new Error('Network response was not ok')
-    }
-    const result = await response.json()
-    tracks.value = result.data || []
-  } catch (error) {
-    console.error('Failed to search tracks:', error)
-    tracks.value = [] // Ensure tracks are empty on error
   } finally {
     isLoading.value = false
   }

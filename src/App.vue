@@ -1,10 +1,11 @@
 <template>
   <header>
-    <!-- ... existing header ... -->
     <h1 @click="$router.push('/')" style="cursor: pointer">🎵 WaveBeat</h1>
+    <SearchBar />
     <nav>
       <div v-if="user">
-        <span>{{ user.displayName || user.email }}</span>
+        <router-link to="/collection/tracks">My Library</router-link>
+        <router-link :to="'/profile'">{{ user.displayName || user.email }}</router-link>
         <button @click="handleLogout">Logout</button>
       </div>
       <div v-else>
@@ -19,12 +20,16 @@
     <router-view
       :liked-track-ids="likedTrackIds"
       :play-queue="playQueue"
+      :user="user"
       :user-playlists="userPlaylists"
+      :recently-played-tracks="recentlyPlayedTracks"
       @play-from-list="playFromList"
       @add-to-queue="addToQueue"
       @play-next="playNextInQueue"
       @toggle-like="toggleLike"
       @add-to-playlist="openAddToPlaylistModal"
+      @playlist-deleted="handlePlaylistDeleted"
+      @profile-updated="handleProfileUpdated"
     >
     </router-view>
   </main>
@@ -68,6 +73,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AudioPlayer from './components/AudioPlayer.vue'
+import SearchBar from './components/SearchBar.vue'
 import QueuePanel from './components/QueuePanel.vue'
 import AddToPlaylistModal from './components/AddToPlaylistModal.vue'
 import {
@@ -95,12 +101,19 @@ const isQueuePanelVisible = ref(false)
 const isPlaylistModalVisible = ref(false)
 const trackForPlaylist = ref(null)
 const userPlaylists = ref([])
+const recentlyPlayedTracks = ref([])
 const router = useRouter()
 
 // --- AUTHENTICATION ---
 
 onMounted(() => {
   onAuthStateChanged(async (firebaseUser) => {
+    // Load recently played from localStorage on startup
+    const savedRecentlyPlayed = localStorage.getItem('wavebeat_recently_played')
+    if (savedRecentlyPlayed) {
+      recentlyPlayedTracks.value = JSON.parse(savedRecentlyPlayed)
+    }
+
     if (firebaseUser) {
       // User is signed in, fetch their profile from Firestore.
       const userProfile = await getUserProfile(firebaseUser.uid)
@@ -138,6 +151,21 @@ const getTrackStream = async (track) => {
     return
   }
   currentTrack.value = track
+
+  // --- Add to Recently Played ---
+  // Remove existing instance of the track to move it to the top
+  const existingIndex = recentlyPlayedTracks.value.findIndex((t) => t.id === track.id)
+  if (existingIndex > -1) {
+    recentlyPlayedTracks.value.splice(existingIndex, 1)
+  }
+  // Add to the beginning of the list
+  recentlyPlayedTracks.value.unshift(track)
+  // Limit the list to a reasonable number (e.g., 20)
+  if (recentlyPlayedTracks.value.length > 20) {
+    recentlyPlayedTracks.value.length = 20
+  }
+  localStorage.setItem('wavebeat_recently_played', JSON.stringify(recentlyPlayedTracks.value))
+
   try {
     const response = await fetch(`${API_BASE_URL}/tracks/${track.id}/stream?app_name=${APP_NAME}`)
     if (!response.ok) throw new Error('Could not fetch stream URL')
@@ -185,6 +213,19 @@ const handleTrackAddedToPlaylist = ({ playlistId, trackId }) => {
   const playlist = userPlaylists.value.find((p) => p.id === playlistId)
   if (playlist && !playlist.trackIds.includes(trackId)) {
     playlist.trackIds.push(trackId)
+  }
+}
+
+const handlePlaylistDeleted = (playlistId) => {
+  const index = userPlaylists.value.findIndex((p) => p.id === playlistId)
+  if (index > -1) {
+    userPlaylists.value.splice(index, 1)
+  }
+}
+
+const handleProfileUpdated = (data) => {
+  if (user.value) {
+    user.value.displayName = data.displayName
   }
 }
 

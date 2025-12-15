@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isLoading" class="loading">Loading playlist...</div>
+  <div v-if="isLoading"><TrackListSkeleton :count="8" /></div>
   <div v-else-if="playlist" class="playlist-view">
     <div class="playlist-header">
       <div class="playlist-artwork">🎵</div>
@@ -9,6 +9,7 @@
           Created by {{ ownerName }} &middot; {{ tracks.length }} songs
         </p>
         <button @click="playPlaylist" class="play-button">Play</button>
+        <button @click="handleDeletePlaylist" class="delete-button">Delete</button>
       </div>
     </div>
     <TrackList
@@ -28,9 +29,15 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { getPlaylist, getUserProfile, removeTrackFromPlaylist } from '../services/authService'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  getPlaylist,
+  getUserProfile,
+  removeTrackFromPlaylist,
+  deletePlaylist,
+} from '../services/authService'
 import TrackList from '../components/TrackList.vue'
+import TrackListSkeleton from '../components/TrackListSkeleton.vue'
 
 const props = defineProps({
   likedTrackIds: Array,
@@ -42,9 +49,11 @@ const emit = defineEmits([
   'play-next',
   'toggle-like',
   'add-to-playlist',
+  'playlist-deleted',
 ])
 
 const route = useRoute()
+const router = useRouter()
 const playlist = ref(null)
 const tracks = ref([])
 const ownerName = ref('')
@@ -119,6 +128,19 @@ const handleRemoveTrack = async (trackToRemove) => {
     console.error('Failed to remove track:', error)
   }
 }
+
+const handleDeletePlaylist = async () => {
+  if (!playlist.value) return
+  if (window.confirm(`Are you sure you want to delete "${playlist.value.name}"?`)) {
+    try {
+      await deletePlaylist(playlist.value.id)
+      emit('playlist-deleted', playlist.value.id)
+      router.push('/')
+    } catch (error) {
+      console.error('Error deleting playlist:', error)
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -147,6 +169,17 @@ const handleRemoveTrack = async (trackToRemove) => {
   font-weight: bold;
   cursor: pointer;
   margin-top: 1rem;
+}
+.delete-button {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--text-secondary);
+  border-radius: 50px;
+  padding: 0.8rem 2rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 1rem;
+  margin-left: 1rem;
 }
 .loading,
 .not-found {

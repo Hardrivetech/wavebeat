@@ -16,7 +16,13 @@
       </div>
       <div class="track-details">
         <div class="track-title">{{ track.title }}</div>
-        <div class="track-artist">{{ track.user.name }}</div>
+        <router-link
+          :to="{ name: 'Artist', params: { handle: track.user.handle } }"
+          class="track-artist"
+          @click.stop
+        >
+          {{ track.user.name }}
+        </router-link>
       </div>
       <div class="track-duration">
         {{ formatDuration(track.duration) }}
@@ -167,6 +173,11 @@ h2 {
 .track-artist {
   color: var(--text-secondary);
   font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.track-artist:hover {
+  text-decoration: underline;
 }
 
 .track-duration {

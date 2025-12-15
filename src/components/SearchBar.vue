@@ -1,64 +1,40 @@
 <template>
-  <div class="search-bar">
-    <form @submit.prevent="handleSearch">
-      <input
-        type="text"
-        v-model="query"
-        placeholder="Search for artists, tracks, or albums..."
-      />
-      <button type="submit">Search</button>
-    </form>
-  </div>
+  <form @submit.prevent="performSearch" class="search-bar">
+    <input type="text" v-model="query" placeholder="Search for tracks..." />
+    <button type="submit">Search</button>
+  </form>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-const query = ref('');
-const emit = defineEmits(['search']);
+const query = ref('')
+const router = useRouter()
 
-const handleSearch = () => {
+const performSearch = () => {
   if (query.value.trim()) {
-    emit('search', query.value.trim());
+    router.push({ name: 'Search', query: { q: query.value.trim() } })
   }
-};
+}
 </script>
 
 <style scoped>
 .search-bar {
-  margin-bottom: 2rem;
-}
-
-form {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
-
-input {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
+.search-bar input {
+  padding: 0.5rem;
   border-radius: 50px;
+  border: 1px solid var(--text-secondary);
   background-color: var(--bg-elevation);
   color: var(--text-primary);
-  border: 1px solid transparent;
+  min-width: 250px;
+  padding-left: 1rem;
 }
-
-button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  background-color: var(--brand-green);
-  color: white;
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-weight: bold;
-}
-
-button:hover {
-  background-color: var(--brand-green-hover);
-  transform: scale(1.05);
+.search-bar button {
+  display: none; /* We can rely on the user pressing Enter */
 }
 </style>

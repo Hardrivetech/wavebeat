@@ -42,7 +42,7 @@ import TrackList from '../components/TrackList.vue'
 import ArtistHeaderSkeleton from '../components/ArtistHeaderSkeleton.vue'
 import TrackListSkeleton from '../components/TrackListSkeleton.vue'
 
-const props = defineProps({
+defineProps({
   likedTrackIds: Array,
 })
 

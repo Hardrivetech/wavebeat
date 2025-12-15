@@ -39,7 +39,7 @@ import {
 import TrackList from '../components/TrackList.vue'
 import TrackListSkeleton from '../components/TrackListSkeleton.vue'
 
-const props = defineProps({
+defineProps({
   likedTrackIds: Array,
 })
 
@@ -114,7 +114,7 @@ const playPlaylist = () => {
   }
 }
 
-const playFromPlaylist = ({ track, index }) => {
+const playFromPlaylist = ({ track }) => {
   emit('play-from-list', { sourceList: tracks.value, track })
 }
 

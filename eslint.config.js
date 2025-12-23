@@ -20,6 +20,25 @@ export default defineConfig([
     },
   },
 
+  {
+    name: 'app/electron-files',
+    files: ['electron/**/*.cjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
+  {
+    name: 'app/netlify-functions',
+    files: ['netlify/functions/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
   skipFormatting,

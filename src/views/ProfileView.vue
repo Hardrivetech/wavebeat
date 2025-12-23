@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { updateUserProfile } from '../services/authService'
 import TrackList from '../components/TrackList.vue'
 import PlaylistList from '../components/PlaylistList.vue'

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import SignupView from '../views/SignupView.vue'
@@ -68,7 +68,8 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  // Use hash history for Electron, and web history for web builds
+  history: process.env.VITE_ELECTRON ? createWebHashHistory() : createWebHistory(),
   routes,
 })
 
